@@ -1,7 +1,7 @@
 # DA6401 Assignment 2 – Multi-Task Perception Pipeline
 
 ## Links
-- GitHub Repository: ADD_YOUR_GITHUB_LINK_HERE  
+- GitHub Repository: https://github.com/Sayantika592/da6401_assignment_2/tree/main  
 - W&B Report: https://wandb.ai/me22b190-indian-institute-of-technology-madras/oxford_pet_multitask/reports/DA6401-Assignment-2--VmlldzoxNjQ4OTQ5Ng?accessToken=rpmc2ebz0b82skj1hlvzdpwngi82pk9i2x62wq0u9jo7sw65cn791q9h85x70ir1
 
 ---
