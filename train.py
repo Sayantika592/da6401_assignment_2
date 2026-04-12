@@ -18,6 +18,7 @@ import matplotlib.patches as patches
 
 # Hyperparameters
 EPOCHS = 50
+EPOCHS_SEG = 60
 BATCH_SIZE = 16
 LR = 1e-4
 VAL_SPLIT = 0.2
@@ -197,6 +198,7 @@ for epoch in range(EPOCHS):
         torch.save(classifier.state_dict(), "checkpoints/classifier.pth")
 
 log_cls_samples(classifier, val_loader, "cls")
+classifier.load_state_dict(torch.load("checkpoints/classifier.pth"))
 encoder_weights = classifier.encoder.state_dict()
 
 # Task 2: Localization (MSE + IoU loss)
