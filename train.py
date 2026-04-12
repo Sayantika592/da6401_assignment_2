@@ -263,78 +263,81 @@ for epoch in range(EPOCHS):
 log_loc_samples(localizer, val_loader, "loc")
 
 # Task 3: Segmentation
-print("Training U-Net segmenter...")
-segmenter = VGG11UNet(num_classes=3).to(device)
-seg_loss_fn = nn.CrossEntropyLoss()
-seg_optimizer = optim.Adam(segmenter.parameters(), lr=LR)
-best_seg_loss = float('inf')
+print("="*60); print("Training U-Net segmenter..."); print("="*60)
 
-for epoch in range(EPOCHS):
-    # Training
+segmenter = VGG11UNet(num_classes=3).to(device)
+# Transfer encoder weights from trained classifier
+segmenter.encoder.load_state_dict(encoder_weights)
+print("Loaded pretrained encoder from classifier into segmenter.")
+
+# Estimate class weights
+print("Computing class weights...")
+class_counts = torch.zeros(3)
+for i, (img, label, bbox, mask) in enumerate(train_loader):
+    for c in range(3):
+        class_counts[c] += (mask == c).sum().item()
+    if i >= 20: break
+total_px = class_counts.sum()
+class_weights = total_px / (3.0 * class_counts + 1e-6)
+class_weights = class_weights / class_weights.sum() * 3.0
+print(f"Class weights: {class_weights}")
+
+seg_loss_fn   = nn.CrossEntropyLoss(weight=class_weights.to(device))
+seg_optimizer = optim.AdamW(segmenter.parameters(), lr=1e-3, weight_decay=1e-4)
+seg_scheduler = optim.lr_scheduler.CosineAnnealingLR(seg_optimizer, T_max=EPOCHS_SEG, eta_min=1e-6)
+best_seg_dice = 0.0
+
+for epoch in range(EPOCHS_SEG):
     segmenter.train()
     t_loss, t_correct, t_total, n_batches = 0, 0, 0, 0
     for img, label, bbox, mask in train_loader:
         img, mask = img.to(device), mask.to(device)
         out = segmenter(img)
         loss = seg_loss_fn(out, mask)
-
-        seg_optimizer.zero_grad()
-        loss.backward()
+        seg_optimizer.zero_grad(); loss.backward()
+        torch.nn.utils.clip_grad_norm_(segmenter.parameters(), max_norm=5.0)
         seg_optimizer.step()
-
         t_loss += loss.item()
         pred_mask = torch.argmax(out, dim=1)
         t_correct += (pred_mask == mask).sum().item()
-        t_total += mask.numel()
-        n_batches += 1
-
-    train_loss = t_loss / n_batches
+        t_total += mask.numel(); n_batches += 1
+    seg_scheduler.step()
+    train_loss    = t_loss / n_batches
     train_pix_acc = t_correct / t_total
 
-    # Validation
     segmenter.eval()
     v_loss, v_correct, v_total, v_dice, v_batches = 0, 0, 0, 0, 0
     with torch.no_grad():
         for img, label, bbox, mask in val_loader:
             img, mask = img.to(device), mask.to(device)
             out = segmenter(img)
-            loss = seg_loss_fn(out, mask)
-            v_loss += loss.item()
+            v_loss += seg_loss_fn(out, mask).item()
             pred_mask = torch.argmax(out, dim=1)
             v_correct += (pred_mask == mask).sum().item()
             v_total += mask.numel()
-            
-            # Fast Dice Score approximation for multi-class (macro avg over classes)
             dice_batch = 0
-            for cls_idx in range(3):
-                pred_cls = (pred_mask == cls_idx)
-                mask_cls = (mask == cls_idx)
-                intersection = (pred_cls & mask_cls).sum().float()
-                union = pred_cls.sum().float() + mask_cls.sum().float()
-                # add smooth to prevent div by zero
-                dice_batch += (2.0 * intersection + 1e-6) / (union + 1e-6)
+            for c in range(3):
+                p = (pred_mask == c).float(); g = (mask == c).float()
+                dice_batch += (2.0*(p*g).sum()+1e-6) / (p.sum()+g.sum()+1e-6)
             v_dice += (dice_batch / 3).item()
-            
             v_batches += 1
-
-    val_loss = v_loss / v_batches
+    val_loss    = v_loss / v_batches
     val_pix_acc = v_correct / v_total
-    val_dice = v_dice / v_batches
+    val_dice    = v_dice / v_batches
 
-    wandb.log({
-        "seg/train_loss": train_loss, "seg/train_pix_acc": train_pix_acc,
-        "seg/val_loss": val_loss, "seg/val_pix_acc": val_pix_acc,
-        "seg/val_dice": val_dice,
-        "epoch": epoch
-    })
-    print(f"[Seg] E{epoch+1} | train_loss={train_loss:.4f} pix_acc={train_pix_acc:.4f} | val_loss={val_loss:.4f} pix_acc={val_pix_acc:.4f} dice={val_dice:.4f}")
+    wandb.log({"seg/train_loss": train_loss, "seg/train_pix_acc": train_pix_acc,
+               "seg/val_loss": val_loss, "seg/val_pix_acc": val_pix_acc,
+               "seg/val_dice": val_dice, "seg/lr": seg_scheduler.get_last_lr()[0], "epoch": epoch})
+    print(f"[Seg] E{epoch+1} | trn_loss={train_loss:.4f} pix={train_pix_acc:.4f} "
+          f"| val_loss={val_loss:.4f} pix={val_pix_acc:.4f} dice={val_dice:.4f}")
 
-    if val_loss < best_seg_loss:
-        best_seg_loss = val_loss
-        print(f"  --> Saving best segmenter (val_loss: {best_seg_loss:.4f})")
+    if val_dice > best_seg_dice:
+        best_seg_dice = val_dice
+        print(f"  --> best segmenter (dice={best_seg_dice:.4f})")
         torch.save(segmenter.state_dict(), "checkpoints/unet.pth")
 
 log_seg_samples(segmenter, val_loader, "seg")
+print(f"Final segmenter macro-Dice: {compute_macro_dice(segmenter, val_loader):.4f}")
 
 wandb.finish()
 print("Training complete. Checkpoints saved.")
