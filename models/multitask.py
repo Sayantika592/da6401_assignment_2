@@ -31,7 +31,7 @@ class MultiTaskPerceptionModel(nn.Module):
             gdown.download(id="1tH-vQsxz3rHdARMJ0mLeBxEctt4xWand", output=classifier_path, quiet=False)
 
         if not os.path.exists(localizer_path):
-            gdown.download(id="15SAgXtnnuXCTNXjEhY5fRbOY7TcIr5w6", output=localizer_path, quiet=False)
+            gdown.download(id="1Ub0xiHf4-BmQeSqf1IoIZhFkGISBOoRU", output=localizer_path, quiet=False)
 
         if not os.path.exists(unet_path):
             gdown.download(id="1X8CRoMmvSwy1_1jwqJ_iDkRKXhB8u1b0", output=unet_path, quiet=False)
