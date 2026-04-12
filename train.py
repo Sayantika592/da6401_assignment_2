@@ -197,6 +197,7 @@ for epoch in range(EPOCHS):
         torch.save(classifier.state_dict(), "checkpoints/classifier.pth")
 
 log_cls_samples(classifier, val_loader, "cls")
+encoder_weights = classifier.encoder.state_dict()
 
 # Task 2: Localization (MSE + IoU loss)
 print("Training localizer...")
