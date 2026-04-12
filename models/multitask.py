@@ -34,7 +34,7 @@ class MultiTaskPerceptionModel(nn.Module):
             gdown.download(id="15SAgXtnnuXCTNXjEhY5fRbOY7TcIr5w6", output=localizer_path, quiet=False)
 
         if not os.path.exists(unet_path):
-            gdown.download(id="1IMtGHVNYgns33vpfMdJE8JPxlHW0lDGO", output=unet_path, quiet=False)
+            gdown.download(id="1X8CRoMmvSwy1_1jwqJ_iDkRKXhB8u1b0", output=unet_path, quiet=False)
 
         self.classifier = VGG11Classifier(num_breeds, in_channels)
         self.localizer = VGG11Localizer(in_channels)
